@@ -454,6 +454,88 @@ app.post("/webhook/zwitch", (req, res) => {
   });
 });
 
+///----------------------- Add verification money testing not needed in live
+app.post(
+  "/sandbox/verification-account/test-balance",
+  asyncHandler(async (req, res) => {
+    const verificationAccountId =
+      req.body.account_id ||
+      process.env.ZWITCH_VERIFICATION_ACCOUNT_ID;
+
+    const missing = requiredFields(req.body, ["amount"]);
+
+    if (!verificationAccountId) {
+      missing.push("account_id or ZWITCH_VERIFICATION_ACCOUNT_ID");
+    }
+
+    if (missing.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+        missing,
+      });
+    }
+
+    const data = await callZwitch(
+      "post",
+      `/v1/accounts/${verificationAccountId}/test-balance`,
+      {
+        data: {
+          amount: Number(req.body.amount),
+        },
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Sandbox verification account test balance added",
+      data,
+    });
+  })
+);
+
+app.post(
+  "/verifications/bank-account/pennyless",
+  asyncHandler(async (req, res) => {
+    const missing = requiredFields(req.body, [
+      "bank_account_number",
+      "bank_ifsc_code",
+    ]);
+
+    if (missing.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+        missing,
+      });
+    }
+
+    const merchantReferenceId =
+      req.body.merchant_reference_id ||
+      `BANKPENNYLESS${Date.now()}${Math.floor(Math.random() * 10000)}`;
+
+    const payload = {
+      bank_account_number: String(req.body.bank_account_number).trim(),
+      bank_ifsc_code: normalizeIfsc(req.body.bank_ifsc_code),
+      merchant_reference_id: cleanReferenceId(merchantReferenceId, "BANKPENNYLESS"),
+      metadata: req.body.metadata,
+    };
+
+    const data = await callZwitch(
+      "post",
+      "/v1/kycs/verifications/bank-account/pennyless",
+      { data: payload }
+    );
+
+    res.json({
+      success: true,
+      message: "Pennyless bank account verification completed",
+      merchant_reference_id: payload.merchant_reference_id,
+      data,
+    });
+  })
+);
+///----------------------------------------------------
 app.use((req, res) => {
   res.status(404).json({
     success: false,
